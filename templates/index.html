@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="text-center mt-5">
+    <h1>Welcome to Finance Tracker</h1>
+    <p class="lead">Track your expenses and manage your finances better</p>
+    {% if not current_user.is_authenticated %}
+        <div class="mt-4">
+            <a href="{{ url_for('register') }}" class="btn btn-primary me-2">Register</a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-primary">Login</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
