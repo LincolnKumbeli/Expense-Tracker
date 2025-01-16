@@ -17,11 +17,14 @@ class LoginForm(FlaskForm):
 class ExpenseForm(FlaskForm):
     amount = FloatField('Amount', validators=[DataRequired()])
     category = SelectField('Category', choices=[
-        ('groceries', 'Groceries'),
-        ('utilities', 'Utilities'),
-        ('entertainment', 'Entertainment'),
-        ('transportation', 'Transportation'),
-        ('other', 'Other')
+        ('Groceries', 'Groceries'),
+        ('Transportation', 'Transportation'),
+        ('Entertainment', 'Entertainment'),
+        ('Utilities', 'Utilities'),
+        ('Food', 'Food'),
+        ('Shopping', 'Shopping'),
+        ('Healthcare', 'Healthcare'),
+        ('Other', 'Other')
     ], validators=[DataRequired()])
     expense_type = SelectField('Type', choices=[
         ('essential', 'Essential'),

@@ -77,8 +77,9 @@ def create_app():
     @app.route('/dashboard')
     @login_required
     def dashboard():
-        # Get selected period and specific date from query parameters
+        # Get selected period and categories from query parameters
         period = request.args.get('period', 'month')
+        selected_categories = request.args.getlist('categories')
         specific_date_str = request.args.get('specific_date')
         
         # Calculate date range based on period
@@ -120,8 +121,27 @@ def create_app():
             query = query.filter(Expense.date >= start_date)
         if end_date:  # Add this condition for specific dates
             query = query.filter(Expense.date < end_date)
+        if selected_categories:
+            query = query.filter(Expense.category.in_(selected_categories))
         expenses = query.order_by(Expense.date.desc()).all()
         
+        # Get all unique categories for the filter, standardized to Title Case
+        all_categories = db.session.query(Expense.category)\
+            .filter_by(user_id=current_user.id)\
+            .distinct()\
+            .all()
+        all_categories = sorted(list(set(cat[0].title() for cat in all_categories)))  # Standardize and deduplicate
+
+        # Update existing categories in the database to use Title Case
+        try:
+            for expense in expenses:
+                if expense.category != expense.category.title():
+                    expense.category = expense.category.title()
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error standardizing categories: {e}")
+
         # Create visualization data with standardized categories
         df = pd.DataFrame([{
             'amount': e.amount,
@@ -139,13 +159,24 @@ def create_app():
         non_essential_total = sum(e.amount for e in expenses if e.expense_type == 'non-essential')
         
         if not df.empty:
+            # Define consistent colors for expense types
+            color_map = {
+                'essential': '#0d6efd',     # Bootstrap primary blue
+                'non-essential': '#6c757d'  # Bootstrap secondary gray
+            }
+            
             # Create expense type pie chart
             type_fig = px.pie(
                 values=[essential_total, non_essential_total],
                 names=['Essential', 'Non-Essential'],
                 title='Essential vs Non-Essential Expenses',
-                color_discrete_sequence=['#36a2eb', '#ff6384']
+                color=['Essential', 'Non-Essential'],
+                color_discrete_map={
+                    'Essential': '#0d6efd',
+                    'Non-Essential': '#6c757d'
+                }
             )
+            
             type_fig.update_traces(
                 texttemplate="PGK %{value:.2f}<br>(%{percent})",
                 hovertemplate="PGK %{value:.2f}<br>%{percent}"
@@ -160,7 +191,7 @@ def create_app():
                 color='expense_type',
                 title='Expenses by Category and Type',
                 labels={'amount': 'Amount (PGK)', 'category': 'Category', 'expense_type': 'Type'},
-                color_discrete_map={'essential': '#36a2eb', 'non-essential': '#ff6384'}
+                color_discrete_map=color_map
             )
             cat_fig.update_traces(
                 hovertemplate="PGK %{y:.2f}<br>%{x}"
@@ -190,7 +221,9 @@ def create_app():
                              spending_analysis=spending_analysis,
                              period=period,
                              period_display=period_display,
-                             specific_date=specific_date_str)  # Add this line
+                             specific_date=specific_date_str,
+                             all_categories=all_categories,
+                             selected_categories=selected_categories)
 
     @app.route('/add_expense', methods=['GET', 'POST'])
     @login_required
@@ -201,7 +234,7 @@ def create_app():
                 print(request.form)  # Print form data to debug
                 expense = Expense(
                     amount=form.amount.data,
-                    category=form.category.data,
+                    category=form.category.data.strip().title(),  # Standardize category name
                     description=form.description.data,
                     honest_reason=form.honest_reason.data,
                     associated_person=form.associated_person.data,  # New field
@@ -412,6 +445,19 @@ def init_db(app):
 
 if __name__ == '__main__':
     app = create_app()
+    
+    # Ensure instance directory exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+    
+    # Initialize database without removing existing one
+    if init_db(app):
+        app.run(debug=True)
+    else:
+        print("Database initialization failed. Please check permissions and try again.")
+        exit(1)
     
     # Ensure instance directory exists
     try:

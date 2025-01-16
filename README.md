@@ -1,12 +1,20 @@
-# Finance App Setup
+# Finance App
 
-## Installation
-1. Create a virtual environment:
+A personal finance tracking application built with Flask.
+
+## Setup Instructions
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+```
+
+2. Create a virtual environment:
 ```bash
 python -m venv venv
 ```
 
-2. Activate the virtual environment:
+3. Activate the virtual environment:
 - Windows:
 ```bash
 venv\Scripts\activate
@@ -16,7 +24,7 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-3. Install dependencies:
+4. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```

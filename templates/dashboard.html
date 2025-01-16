@@ -13,7 +13,7 @@
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
                     <i class="fas fa-upload"></i> Upload CSV
                 </button>
-                <!-- Existing Download Button -->
+                <!-- Download Button -->
                 <a href="{{ url_for('download_expenses', period=period) }}" class="btn btn-success">
                     <i class="fas fa-download"></i> Download CSV
                 </a>
@@ -35,6 +35,40 @@
         </div>
     </div>
     
+    <!-- Add Category Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Filter Categories</h5>
+            <form id="filterForm" method="GET" class="mb-3">
+                <input type="hidden" name="period" value="{{ period }}">
+                {% if specific_date %}
+                <input type="hidden" name="specific_date" value="{{ specific_date }}">
+                {% endif %}
+                <div class="d-flex flex-wrap gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="all_categories" 
+                               onchange="toggleAllCategories(this)" 
+                               {% if not selected_categories %}checked{% endif %}>
+                        <label class="form-check-label" for="all_categories">
+                            All Categories
+                        </label>
+                    </div>
+                    {% for category in all_categories %}
+                    <div class="form-check">
+                        <input class="form-check-input category-checkbox" type="checkbox" 
+                               name="categories" value="{{ category }}" id="cat_{{ category }}"
+                               {% if not selected_categories or category in selected_categories %}checked{% endif %}>
+                        <label class="form-check-label" for="cat_{{ category }}">
+                            {{ category }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm mt-2">Apply Filters</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Summary Section -->
     <div class="card mb-4">
         <div class="card-body">
@@ -166,6 +200,23 @@ Date,Category,Type,Description,Honest_Reason,Associated_Person,Amount
 document.querySelector('select[name="period"]').addEventListener('change', function() {
     const datePicker = document.querySelector('input[name="specific_date"]');
     datePicker.style.display = this.value === 'specific' ? 'block' : 'none';
+});
+
+function toggleAllCategories(checkbox) {
+    const categoryCheckboxes = document.getElementsByClassName('category-checkbox');
+    Array.from(categoryCheckboxes).forEach(box => {
+        box.checked = checkbox.checked;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const categoryCheckboxes = document.getElementsByClassName('category-checkbox');
+    Array.from(categoryCheckboxes).forEach(box => {
+        box.addEventListener('change', function() {
+            const allChecked = Array.from(categoryCheckboxes).every(cb => cb.checked);
+            document.getElementById('all_categories').checked = allChecked;
+        });
+    });
 });
 </script>
 {% endblock %}

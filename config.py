@@ -9,3 +9,4 @@ class Config:
     SECRET_KEY = 'dev-key-please-change'
     SQLALCHEMY_DATABASE_URI = f'sqlite:///{os.path.join(basedir, "instance", "finance.db")}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Remove all MAIL_* settings
