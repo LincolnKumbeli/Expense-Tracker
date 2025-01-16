@@ -24,9 +24,13 @@ class Expense(db.Model):
     category = db.Column(db.String(64), nullable=False)
     description = db.Column(db.String(256))
     honest_reason = db.Column(db.String(256))
-    associated_person = db.Column(db.String(256))  # New field
+    associated_person = db.Column(db.String(256))
     date = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    expense_type = db.Column(db.String(64), nullable=False, default='non-essential')
+
+    def __repr__(self):
+        return f'<Expense {self.description} ${self.amount}>'
 
 @login_manager.user_loader
 def load_user(id):

@@ -21,9 +21,11 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(64), nullable=False)
     description = db.Column(db.String(256))
-    associated_person = db.Column(db.String(256))  # New field
+    honest_reason = db.Column(db.String(256))  # New field
+    associated_person = db.Column(db.String(256))
     date = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    expense_type = db.Column(db.String(64), nullable=False, default='non-essential')  # New field
 
 @login_manager.user_loader
 def load_user(id):

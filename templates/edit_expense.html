@@ -23,11 +23,32 @@
                                 <span class="text-danger">{{ error }}</span>
                             {% endfor %}
                         </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.expense_type.label(class="form-label") }}
+                            {{ form.expense_type(class="form-select") }}
+                            {% for error in form.expense_type.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
                     </div>
                     <div class="mb-3">
                         {{ form.description.label(class="form-label") }}
-                        {{ form.description(class="form-control", rows="3") }}
+                        {{ form.description(class="form-control", rows="2") }}
                         {% for error in form.description.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.honest_reason.label(class="form-label") }}
+                        {{ form.honest_reason(class="form-control", rows="2") }}
+                        {% for error in form.honest_reason.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.associated_person.label(class="form-label") }}
+                        {{ form.associated_person(class="form-control") }}
+                        {% for error in form.associated_person.errors %}
                             <span class="text-danger">{{ error }}</span>
                         {% endfor %}
                     </div>

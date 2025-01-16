@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, flash, request
+from flask import Flask, render_template, redirect, url_for, flash, request, send_file
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import plotly.express as px
@@ -12,6 +12,9 @@ import time
 from datetime import datetime, timedelta
 import calendar
 from flask_migrate import Migrate
+import io
+import csv
+from werkzeug.utils import secure_filename
 
 def create_app():
     app = Flask(__name__)
@@ -99,41 +102,70 @@ def create_app():
         expenses = query.order_by(Expense.date.desc()).all()
         
         # Create visualization data
-        df = pd.DataFrame([(e.amount, e.category, e.date) for e in expenses], 
-                         columns=['amount', 'category', 'date'])
+        df = pd.DataFrame([{
+            'amount': e.amount,
+            'category': e.category,
+            'date': e.date,
+            'description': e.description,
+            'expense_type': e.expense_type,
+            'honest_reason': e.honest_reason,
+            'associated_person': e.associated_person
+        } for e in expenses])
         
-        # Calculate total spent
+        # Calculate totals
         total_spent = sum(e.amount for e in expenses)
+        essential_total = sum(e.amount for e in expenses if e.expense_type == 'essential')
+        non_essential_total = sum(e.amount for e in expenses if e.expense_type == 'non-essential')
         
         if not df.empty:
-            # Group by category and sum amounts
-            category_sums = df.groupby('category')['amount'].sum()
-            top_category = category_sums.idxmax()
-            top_amount = category_sums.max()
+            # Create expense type pie chart
+            type_fig = px.pie(
+                values=[essential_total, non_essential_total],
+                names=['Essential', 'Non-Essential'],
+                title='Essential vs Non-Essential Expenses',
+                color_discrete_sequence=['#36a2eb', '#ff6384']
+            )
+            type_fig.update_traces(
+                texttemplate="PGK %{value:.2f}<br>(%{percent})",
+                hovertemplate="PGK %{value:.2f}<br>%{percent}"
+            )
+            type_chart = type_fig.to_html(full_html=False)
             
-            # Create bar chart
-            fig = px.bar(
-                df.groupby('category')['amount'].sum().reset_index(),
+            # Create category bar chart
+            cat_fig = px.bar(
+                df.groupby(['category', 'expense_type'])['amount'].sum().reset_index(),
                 x='category',
                 y='amount',
-                title='Expenses by Category',
-                labels={'amount': 'Amount ($)', 'category': 'Category'},
-                color='category'
+                color='expense_type',
+                title='Expenses by Category and Type',
+                labels={'amount': 'Amount (PGK)', 'category': 'Category', 'expense_type': 'Type'},
+                color_discrete_map={'essential': '#36a2eb', 'non-essential': '#ff6384'}
             )
-            fig.update_layout(showlegend=False)
-            chart = fig.to_html(full_html=False)
+            cat_fig.update_traces(
+                hovertemplate="PGK %{y:.2f}<br>%{x}"
+            )
+            cat_fig.update_layout(
+                yaxis_tickprefix='PGK ',
+                yaxis_title='Amount (PGK)'
+            )
+            category_chart = cat_fig.to_html(full_html=False)
             
             # Create spending analysis text
-            spending_analysis = f"Your highest spending category is '{top_category}' at ${top_amount:.2f}. "
-            spending_analysis += f"This represents {(top_amount/total_spent)*100:.1f}% of your total expenses."
+            essential_percent = (essential_total/total_spent)*100 if total_spent > 0 else 0
+            spending_analysis = f"Essential expenses: PGK {essential_total:.2f} ({essential_percent:.1f}%). "
+            spending_analysis += f"Non-essential expenses: PGK {non_essential_total:.2f} ({100-essential_percent:.1f}%)"
         else:
-            chart = None
+            type_chart = None
+            category_chart = None
             spending_analysis = f"No expenses recorded for {period_display.lower()}."
         
         return render_template('dashboard.html',
                              expenses=expenses,
-                             chart=chart,
+                             chart=category_chart,
+                             type_chart=type_chart,
                              total_spent=total_spent,
+                             essential_total=essential_total,
+                             non_essential_total=non_essential_total,
                              spending_analysis=spending_analysis,
                              period=period,
                              period_display=period_display)
@@ -151,6 +183,7 @@ def create_app():
                     description=form.description.data,
                     honest_reason=form.honest_reason.data,
                     associated_person=form.associated_person.data,  # New field
+                    expense_type=form.expense_type.data,  # Add this line
                     user_id=current_user.id,
                     date=datetime.now() if form.use_current_time.data == 'now' else form.date.data
                 )
@@ -183,7 +216,8 @@ def create_app():
             expense.category = form.category.data
             expense.description = form.description.data
             expense.honest_reason = form.honest_reason.data
-            expense.associated_person = form.associated_person.data  # Ensure this is included
+            expense.associated_person = form.associated_person.data
+            expense.expense_type = form.expense_type.data  # Add this line
             db.session.commit()
             flash('Expense updated successfully!', 'success')
             return redirect(url_for('dashboard'))
@@ -200,6 +234,136 @@ def create_app():
         db.session.delete(expense)
         db.session.commit()
         flash('Expense deleted successfully!', 'success')
+        return redirect(url_for('dashboard'))
+
+    @app.route('/download_expenses')
+    @login_required
+    def download_expenses():
+        # Get period from query parameters
+        period = request.args.get('period', 'month')
+        
+        # Calculate date range (reuse logic from dashboard)
+        today = datetime.now()
+        if period == 'week':
+            start_date = today - timedelta(days=today.weekday())
+        elif period == 'month':
+            start_date = today.replace(day=1)
+        elif period == 'year':
+            start_date = today.replace(month=1, day=1)
+        else:  # 'all'
+            start_date = None
+
+        # Query expenses
+        query = Expense.query.filter_by(user_id=current_user.id)
+        if start_date:
+            query = query.filter(Expense.date >= start_date)
+        expenses = query.order_by(Expense.date.desc()).all()
+
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Date', 'Category', 'Type', 'Description', 'Honest Reason', 
+                        'Associated Person', 'Amount'])
+        
+        # Write expenses
+        for expense in expenses:
+            writer.writerow([
+                expense.date.strftime('%Y-%m-%d %H:%M'),
+                expense.category,
+                expense.expense_type,
+                expense.description,
+                expense.honest_reason,
+                expense.associated_person,
+                f"${expense.amount:.2f}"
+            ])
+
+        # Prepare the output
+        output.seek(0)
+        filename = f"expenses_{period}_{datetime.now().strftime('%Y%m%d')}.csv"
+        
+        return send_file(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    @app.route('/upload_expenses', methods=['POST'])
+    @login_required
+    def upload_expenses():
+        if 'file' not in request.files:
+            flash('No file selected', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(url_for('dashboard'))
+
+        if file and file.filename.endswith('.csv'):
+            try:
+                # Read CSV with more flexible column names
+                df = pd.read_csv(file)
+                # Standardize column names by removing spaces and converting to lowercase
+                df.columns = [col.strip().lower().replace(' ', '_') for col in df.columns]
+                
+                successful_imports = 0
+                errors = []
+                
+                print("Columns found in CSV:", df.columns.tolist())  # Debug print
+                
+                for index, row in df.iterrows():
+                    try:
+                        # More flexible amount parsing
+                        amount_str = str(row.get('amount', '')).replace('PGK', '').replace('$', '').strip()
+                        amount = float(amount_str)
+                        
+                        # Get date with flexible column name
+                        date_str = row.get('date', '') or row.get('datetime', '')
+                        try:
+                            date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
+                        except ValueError:
+                            # Try alternative date formats
+                            try:
+                                date = datetime.strptime(date_str, '%Y-%m-%d')
+                            except ValueError:
+                                date = datetime.now()
+                        
+                        expense = Expense(
+                            amount=amount,
+                            category=row.get('category', 'Other'),
+                            description=row.get('description', ''),
+                            honest_reason=row.get('honest_reason', ''),
+                            associated_person=row.get('associated_person', ''),
+                            expense_type=row.get('type', 'non-essential').lower(),
+                            date=date,
+                            user_id=current_user.id
+                        )
+                        db.session.add(expense)
+                        successful_imports += 1
+                    except Exception as e:
+                        errors.append(f"Error in row {index + 2}: {str(e)}")
+                        continue
+
+                if successful_imports > 0:
+                    db.session.commit()
+                    flash(f'Successfully imported {successful_imports} expenses!', 'success')
+                else:
+                    flash('No valid expenses found in the CSV file.', 'warning')
+                
+                if errors:
+                    for error in errors[:5]:  # Show first 5 errors
+                        flash(error, 'warning')
+                    if len(errors) > 5:
+                        flash(f'...and {len(errors) - 5} more errors', 'warning')
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error processing CSV: {str(e)}', 'danger')
+                print(f"CSV processing error: {str(e)}")  # Debug print
+                
         return redirect(url_for('dashboard'))
 
     return app

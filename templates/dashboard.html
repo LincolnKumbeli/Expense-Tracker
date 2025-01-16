@@ -8,14 +8,24 @@
             <h4 class="text-muted">{{ period_display }}</h4>
         </div>
         <div class="col-md-6 text-end">
-            <form method="GET" class="d-flex justify-content-end gap-2">
-                <select name="period" class="form-select w-auto" onchange="this.form.submit()">
-                    <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
-                    <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
-                    <option value="year" {% if period == 'year' %}selected{% endif %}>This Year</option>
-                    <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
-                </select>
-            </form>
+            <div class="d-flex justify-content-end gap-2">
+                <!-- Upload Button -->
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                    <i class="fas fa-upload"></i> Upload CSV
+                </button>
+                <!-- Existing Download Button -->
+                <a href="{{ url_for('download_expenses', period=period) }}" class="btn btn-success">
+                    <i class="fas fa-download"></i> Download CSV
+                </a>
+                <form method="GET" class="d-inline">
+                    <select name="period" class="form-select w-auto" onchange="this.form.submit()">
+                        <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
+                        <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
+                        <option value="year" {% if period == 'year' %}selected{% endif %}>This Year</option>
+                        <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
+                    </select>
+                </form>
+            </div>
         </div>
     </div>
     
@@ -27,24 +37,46 @@
                 <div class="col-md-4">
                     <div class="alert alert-info">
                         <h5>Total Spent</h5>
-                        <h3>${{ "%.2f"|format(total_spent) }}</h3>
+                        <h3>PGK {{ "%.2f"|format(total_spent) }}</h3>
                     </div>
                 </div>
-                <div class="col-md-8">
+                <div class="col-md-4">
                     <div class="alert alert-primary">
-                        <h5>Spending Analysis</h5>
-                        <p>{{ spending_analysis }}</p>
+                        <h5>Essential Expenses</h5>
+                        <h3>PGK {{ "%.2f"|format(essential_total) }}</h3>
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="alert alert-secondary">
+                        <h5>Non-Essential Expenses</h5>
+                        <h3>PGK {{ "%.2f"|format(non_essential_total) }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="alert alert-light">
+                <h5>Spending Analysis</h5>
+                <p>{{ spending_analysis | replace('$', 'PGK ') }}</p>
             </div>
         </div>
     </div>
 
     <!-- Chart Section -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <h3 class="card-title">Monthly Expenses by Category</h3>
-            {{ chart|safe }}
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Expense Distribution</h3>
+                    {{ type_chart|safe }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Category Breakdown</h3>
+                    {{ chart|safe }}
+                </div>
+            </div>
         </div>
     </div>
 
@@ -58,20 +90,26 @@
                         <tr>
                             <th>Date & Time</th>
                             <th>Category</th>
+                            <th>Type</th>
                             <th>Description</th>
                             <th>Honest Reason</th>
+                            <th>Associated Person</th>
                             <th>Amount</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for expense in expenses %}
-                        <tr>
+                        <tr class="{% if expense.expense_type == 'essential' %}table-info{% endif %}">
                             <td>{{ expense.date.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>{{ expense.category }}</td>
+                            <td><span class="badge {% if expense.expense_type == 'essential' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                {{ expense.expense_type|title }}
+                            </span></td>
                             <td>{{ expense.description }}</td>
                             <td><em>{{ expense.honest_reason }}</em></td>
-                            <td>${{ "%.2f"|format(expense.amount) }}</td>
+                            <td>{{ expense.associated_person }}</td>
+                            <td>PGK {{ "%.2f"|format(expense.amount) }}</td>
                             <td>
                                 <a href="{{ url_for('edit_expense', id=expense.id) }}" class="btn btn-sm btn-primary">
                                     <i class="fas fa-edit"></i>
@@ -85,6 +123,34 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Expenses CSV</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('upload_expenses') }}" method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">Choose CSV File</label>
+                        <input type="file" class="form-control" id="csvFile" name="file" accept=".csv" required>
+                    </div>
+                    <div class="text-muted small mb-3">
+                        <p>Required CSV format:</p>
+                        <pre class="bg-light p-2">
+Date,Category,Type,Description,Honest_Reason,Associated_Person,Amount
+2024-01-16 10:30,Groceries,essential,Weekly shopping,Need food,None,PGK 150.00
+2024-01-16 14:45,Entertainment,non-essential,Movies,Fun time,John,PGK 50.00</pre>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </form>
             </div>
         </div>
     </div>

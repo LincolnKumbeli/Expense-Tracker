@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectField, DateTimeLocalField
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectField, DateTimeLocalField, BooleanField
 from wtforms.validators import DataRequired, Email, Length, Optional
 from datetime import datetime
 
@@ -17,12 +17,16 @@ class LoginForm(FlaskForm):
 class ExpenseForm(FlaskForm):
     amount = FloatField('Amount', validators=[DataRequired()])
     category = SelectField('Category', choices=[
-        ('food', 'Food'),
-        ('transport', 'Transport'),
-        ('entertainment', 'Entertainment'),
+        ('groceries', 'Groceries'),
         ('utilities', 'Utilities'),
+        ('entertainment', 'Entertainment'),
+        ('transportation', 'Transportation'),
         ('other', 'Other')
     ], validators=[DataRequired()])
+    expense_type = SelectField('Type', choices=[
+        ('essential', 'Essential'),
+        ('non-essential', 'Non-Essential')
+    ], default='non-essential')
     description = TextAreaField('Description', validators=[Optional()])
     honest_reason = TextAreaField('Honest Reason for Spending', validators=[Optional()])
     associated_person = StringField('Associated Person', validators=[Length(max=256)])  # New field
