@@ -2,12 +2,48 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">Dashboard</h2>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>Dashboard</h2>
+            <h4 class="text-muted">{{ period_display }}</h4>
+        </div>
+        <div class="col-md-6 text-end">
+            <form method="GET" class="d-flex justify-content-end gap-2">
+                <select name="period" class="form-select w-auto" onchange="this.form.submit()">
+                    <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
+                    <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
+                    <option value="year" {% if period == 'year' %}selected{% endif %}>This Year</option>
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
+                </select>
+            </form>
+        </div>
+    </div>
     
+    <!-- Summary Section -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h3 class="card-title">Expense Summary</h3>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="alert alert-info">
+                        <h5>Total Spent</h5>
+                        <h3>${{ "%.2f"|format(total_spent) }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="alert alert-primary">
+                        <h5>Spending Analysis</h5>
+                        <p>{{ spending_analysis }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Chart Section -->
     <div class="card mb-4">
         <div class="card-body">
-            <h3 class="card-title">Expense Overview</h3>
+            <h3 class="card-title">Monthly Expenses by Category</h3>
             {{ chart|safe }}
         </div>
     </div>
@@ -20,9 +56,10 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>Date</th>
+                            <th>Date & Time</th>
                             <th>Category</th>
                             <th>Description</th>
+                            <th>Honest Reason</th>
                             <th>Amount</th>
                             <th>Actions</th>
                         </tr>
@@ -30,9 +67,10 @@
                     <tbody>
                         {% for expense in expenses %}
                         <tr>
-                            <td>{{ expense.date.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ expense.date.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>{{ expense.category }}</td>
                             <td>{{ expense.description }}</td>
+                            <td><em>{{ expense.honest_reason }}</em></td>
                             <td>${{ "%.2f"|format(expense.amount) }}</td>
                             <td>
                                 <a href="{{ url_for('edit_expense', id=expense.id) }}" class="btn btn-sm btn-primary">

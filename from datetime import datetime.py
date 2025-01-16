@@ -21,6 +21,7 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(64), nullable=False)
     description = db.Column(db.String(256))
+    associated_person = db.Column(db.String(256))  # New field
     date = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
