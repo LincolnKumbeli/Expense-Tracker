@@ -77,34 +77,55 @@ def create_app():
     @app.route('/dashboard')
     @login_required
     def dashboard():
-        # Get selected period from query parameters
+        # Get selected period and specific date from query parameters
         period = request.args.get('period', 'month')
+        specific_date_str = request.args.get('specific_date')
         
         # Calculate date range based on period
         today = datetime.now()
-        if period == 'week':
+        if period == 'specific' and specific_date_str:
+            try:
+                selected_date = datetime.strptime(specific_date_str, '%Y-%m-%d')
+                start_date = selected_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_date = start_date + timedelta(days=1)
+                period_display = selected_date.strftime('%B %d, %Y')
+            except ValueError:
+                start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_date = None
+                period_display = "Today"
+        elif period == 'day':
+            start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = start_date + timedelta(days=1)
+            period_display = today.strftime('%B %d, %Y')
+        elif period == 'week':
             start_date = today - timedelta(days=today.weekday())
+            end_date = start_date + timedelta(days=7)
             period_display = f"Week of {start_date.strftime('%B %d, %Y')}"
         elif period == 'month':
             start_date = today.replace(day=1)
+            end_date = (start_date + timedelta(days=32)).replace(day=1)
             period_display = today.strftime('%B %Y')
         elif period == 'year':
             start_date = today.replace(month=1, day=1)
+            end_date = start_date.replace(year=start_date.year + 1)
             period_display = today.strftime('%Y')
         else:  # 'all'
             start_date = None
+            end_date = None
             period_display = "All Time"
 
-        # Query expenses for the selected period
+        # Update query to use end_date if specified
         query = Expense.query.filter_by(user_id=current_user.id)
         if start_date:
             query = query.filter(Expense.date >= start_date)
+        if end_date:  # Add this condition for specific dates
+            query = query.filter(Expense.date < end_date)
         expenses = query.order_by(Expense.date.desc()).all()
         
-        # Create visualization data
+        # Create visualization data with standardized categories
         df = pd.DataFrame([{
             'amount': e.amount,
-            'category': e.category,
+            'category': e.category.title(),  # Standardize category names
             'date': e.date,
             'description': e.description,
             'expense_type': e.expense_type,
@@ -168,7 +189,8 @@ def create_app():
                              non_essential_total=non_essential_total,
                              spending_analysis=spending_analysis,
                              period=period,
-                             period_display=period_display)
+                             period_display=period_display,
+                             specific_date=specific_date_str)  # Add this line
 
     @app.route('/add_expense', methods=['GET', 'POST'])
     @login_required
@@ -316,6 +338,9 @@ def create_app():
                 
                 for index, row in df.iterrows():
                     try:
+                        # Standardize category name
+                        category = row.get('category', 'Other').strip().title()
+                        
                         # More flexible amount parsing
                         amount_str = str(row.get('amount', '')).replace('PGK', '').replace('$', '').strip()
                         amount = float(amount_str)
@@ -333,7 +358,7 @@ def create_app():
                         
                         expense = Expense(
                             amount=amount,
-                            category=row.get('category', 'Other'),
+                            category=category,  # Use standardized category
                             description=row.get('description', ''),
                             honest_reason=row.get('honest_reason', ''),
                             associated_person=row.get('associated_person', ''),

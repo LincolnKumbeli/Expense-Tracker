@@ -17,13 +17,19 @@
                 <a href="{{ url_for('download_expenses', period=period) }}" class="btn btn-success">
                     <i class="fas fa-download"></i> Download CSV
                 </a>
-                <form method="GET" class="d-inline">
+                <form method="GET" class="d-flex gap-2">
                     <select name="period" class="form-select w-auto" onchange="this.form.submit()">
+                        <option value="day" {% if period == 'day' %}selected{% endif %}>Today</option>
+                        <option value="specific" {% if period == 'specific' %}selected{% endif %}>Specific Date</option>
                         <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
                         <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
                         <option value="year" {% if period == 'year' %}selected{% endif %}>This Year</option>
                         <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
                     </select>
+                    <input type="date" name="specific_date" class="form-control w-auto" 
+                           value="{{ specific_date if specific_date }}"
+                           {% if period != 'specific' %}style="display: none;"{% endif %}
+                           onchange="this.form.submit()">
                 </form>
             </div>
         </div>
@@ -155,4 +161,11 @@ Date,Category,Type,Description,Honest_Reason,Associated_Person,Amount
         </div>
     </div>
 </div>
+
+<script>
+document.querySelector('select[name="period"]').addEventListener('change', function() {
+    const datePicker = document.querySelector('input[name="specific_date"]');
+    datePicker.style.display = this.value === 'specific' ? 'block' : 'none';
+});
+</script>
 {% endblock %}
